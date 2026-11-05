@@ -2,7 +2,7 @@
 Gemini LLM and Vision Provider.
 
 Wraps Google's official `google-genai` SDK with retry logic, rate limit backoff,
-multimodal handling, and graceful error messages.
+multimodal handling, graceful error messages, and automatic model fallback.
 """
 
 from __future__ import annotations
@@ -16,6 +16,9 @@ from mmassistant.config import AppConfig, get_config
 from mmassistant.llm.base import LLMProvider, LLMResponse
 
 logger = logging.getLogger(__name__)
+
+# Known stable fallback models in priority order
+FALLBACK_MODELS = ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-flash-latest"]
 
 
 class GeminiProvider(LLMProvider):
@@ -32,13 +35,13 @@ class GeminiProvider(LLMProvider):
 
         Args:
             api_key: Optional Gemini API key. If omitted, loaded from AppConfig.
-            model_id: Model name (e.g. 'gemini-2.0-flash'). Defaults to AppConfig.
+            model_id: Model name (e.g. 'gemini-3.5-flash'). Defaults to AppConfig.
             max_retries: Number of exponential backoff attempts on rate limits.
             base_backoff_seconds: Initial backoff delay in seconds.
         """
         cfg: AppConfig = get_config()
-        self.api_key = (api_key or cfg.google_api_key).strip()
-        self.model_id = (model_id or cfg.gemini_model_id).strip()
+        self.api_key = (api_key if api_key is not None else cfg.google_api_key).strip()
+        self.model_id = (model_id if model_id is not None else cfg.gemini_model_id).strip()
         self.max_retries = max_retries
         self.base_backoff_seconds = base_backoff_seconds
 
@@ -97,14 +100,43 @@ class GeminiProvider(LLMProvider):
         if last_exception:
             raise last_exception
 
+    def _call_with_fallback(self, execute_fn_builder: Any) -> tuple[Any, str]:
+        """Attempt generation with active model, falling back if model is unavailable."""
+        client = self._get_client()
+        candidate_models = [self.model_id] + [m for m in FALLBACK_MODELS if m != self.model_id]
+
+        last_err: Exception | None = None
+        for model_name in candidate_models:
+            call_fn, config = execute_fn_builder(client, model_name)
+            try:
+                response = self._execute_with_retry(call_fn)
+                if model_name != self.model_id:
+                    logger.info("Successfully recovered using fallback model '%s'.", model_name)
+                return response, model_name
+            except Exception as exc:
+                err_str = str(exc).lower()
+                is_unavailable = "503" in err_str or "404" in err_str or "unavailable" in err_str or "not_found" in err_str
+                if is_unavailable and model_name != candidate_models[-1]:
+                    logger.warning(
+                        "Model '%s' unavailable (%s). Attempting fallback...",
+                        model_name,
+                        exc,
+                    )
+                    last_err = exc
+                    continue
+                raise exc
+
+        if last_err:
+            raise last_err
+        raise RuntimeError("No models available for generation.")
+
     def generate_text(
         self,
         prompt: str,
         system_instruction: str | None = None,
         temperature: float = 0.2,
     ) -> LLMResponse:
-        """Generate text using Gemini."""
-        client = self._get_client()
+        """Generate text using Gemini with automatic fallback on transient outages."""
         from google.genai import types
 
         config = types.GenerateContentConfig(
@@ -112,14 +144,16 @@ class GeminiProvider(LLMProvider):
             temperature=temperature,
         )
 
-        def _call() -> Any:
-            return client.models.generate_content(
-                model=self.model_id,
-                contents=prompt,
-                config=config,
-            )
+        def _builder(client: Any, model_name: str) -> tuple[Any, Any]:
+            def _call() -> Any:
+                return client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=config,
+                )
+            return _call, config
 
-        response = self._execute_with_retry(_call)
+        response, used_model = self._call_with_fallback(_builder)
 
         text_content = response.text or ""
         tokens_in = getattr(response.usage_metadata, "prompt_token_count", None) if hasattr(response, "usage_metadata") else None
@@ -127,7 +161,7 @@ class GeminiProvider(LLMProvider):
 
         return LLMResponse(
             content=text_content,
-            model_name=self.model_id,
+            model_name=used_model,
             prompt_tokens=tokens_in,
             completion_tokens=tokens_out,
             raw_response=response,
@@ -142,24 +176,24 @@ class GeminiProvider(LLMProvider):
         temperature: float = 0.2,
     ) -> LLMResponse:
         """Generate analysis from an image and text prompt."""
-        client = self._get_client()
         from google.genai import types
 
         image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
-
         config = types.GenerateContentConfig(
             system_instruction=system_instruction,
             temperature=temperature,
         )
 
-        def _call() -> Any:
-            return client.models.generate_content(
-                model=self.model_id,
-                contents=[image_part, prompt],
-                config=config,
-            )
+        def _builder(client: Any, model_name: str) -> tuple[Any, Any]:
+            def _call() -> Any:
+                return client.models.generate_content(
+                    model=model_name,
+                    contents=[image_part, prompt],
+                    config=config,
+                )
+            return _call, config
 
-        response = self._execute_with_retry(_call)
+        response, used_model = self._call_with_fallback(_builder)
 
         text_content = response.text or ""
         tokens_in = getattr(response.usage_metadata, "prompt_token_count", None) if hasattr(response, "usage_metadata") else None
@@ -167,7 +201,7 @@ class GeminiProvider(LLMProvider):
 
         return LLMResponse(
             content=text_content,
-            model_name=self.model_id,
+            model_name=used_model,
             prompt_tokens=tokens_in,
             completion_tokens=tokens_out,
             raw_response=response,
@@ -178,7 +212,7 @@ class GeminiProvider(LLMProvider):
         try:
             resp = self.generate_text(prompt="Reply with the single word: OK", temperature=0.0)
             if "ok" in resp.content.lower():
-                return True, f"Successfully connected to Gemini model '{self.model_id}'."
-            return True, f"Connected to Gemini, received response: '{resp.content.strip()}'."
+                return True, f"Successfully connected to Gemini model '{resp.model_name}'."
+            return True, f"Connected to Gemini ({resp.model_name}), received response: '{resp.content.strip()}'."
         except Exception as exc:
             return False, f"Connection failed: {exc}"
