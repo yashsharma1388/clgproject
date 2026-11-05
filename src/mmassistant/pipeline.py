@@ -19,6 +19,7 @@ from mmassistant.ingestion.chunking import Chunk, chunk_document
 from mmassistant.ingestion.figures import extract_and_caption_figures
 from mmassistant.ingestion.loaders import Document, compute_file_hash, load_document
 from mmassistant.llm.base import LLMProvider, LLMResponse
+from mmassistant.llm.factory import get_llm_provider
 from mmassistant.llm.gemini import GeminiProvider
 from mmassistant.prompts import (
     REFUSAL_MESSAGE,
@@ -86,7 +87,7 @@ class MultimodalPipeline:
     ) -> None:
         """Initialize pipeline subsystems."""
         self.config: AppConfig = get_config()
-        self.llm = llm_provider or GeminiProvider()
+        self.llm = llm_provider or get_llm_provider()
         self.embedder = embedder or BGEEmbedder()
         self.vector_store = vector_store or ChromaVectorStore()
         self.retriever = retriever or DocumentRetriever(

@@ -17,6 +17,8 @@ import streamlit as st
 from PIL import Image
 
 from mmassistant.config import AppConfig, get_config
+from mmassistant.llm.gemini import GeminiProvider
+from mmassistant.llm.ollama import OllamaProvider
 from mmassistant.pipeline import MixedResult, MultimodalPipeline, RAGResult, VisionResult
 from mmassistant.router import InputRouter, InputType
 
@@ -66,13 +68,39 @@ def render_sidebar(pipeline: MultimodalPipeline, cfg: AppConfig) -> None:
     with st.sidebar:
         st.title("⚙️ System Control")
 
-        # 1. API Status Banner
-        if not cfg.has_api_key:
-            st.error("⚠️ `GOOGLE_API_KEY` is not set in `.env`.")
+        # 1. LLM Engine Selector
+        st.subheader("🧠 Inference Engine")
+        ollama_checker = OllamaProvider()
+        ollama_is_online = ollama_checker.is_available()
+
+        provider_options = ["Ollama (Local Phi-3 / Offline)", "Google Gemini (Cloud)"]
+        default_idx = 0 if (cfg.llm_provider == "ollama" and ollama_is_online) else 1
+
+        provider_choice = st.radio(
+            "Active Inference Provider:",
+            options=provider_options,
+            index=default_idx,
+            help="Choose between 100% offline local model (Phi-3) and cloud Gemini API.",
+        )
+        use_ollama = "Ollama" in provider_choice
+
+        if use_ollama:
+            if ollama_is_online:
+                st.success(f"🟢 Local Ollama Active: `{cfg.ollama_model_id}` (Offline & Free)")
+            else:
+                st.warning("⚠️ Local Ollama server offline. Run `ollama serve`.")
+            pipeline.llm = OllamaProvider(model_id=cfg.ollama_model_id)
+            pipeline.vision.llm = pipeline.llm
         else:
-            st.success(f"🟢 Connected: `{cfg.gemini_model_id}`")
+            if not cfg.has_api_key:
+                st.error("⚠️ `GOOGLE_API_KEY` is not set in `.env`.")
+            else:
+                st.success(f"☁️ Cloud Active: `{cfg.gemini_model_id}`")
+            pipeline.llm = GeminiProvider(model_id=cfg.gemini_model_id)
+            pipeline.vision.llm = pipeline.llm
 
         with st.expander("ℹ️ Architecture & Settings", expanded=False):
+            st.caption(f"**Text LLM:** `{'ollama/' + cfg.ollama_model_id if use_ollama else cfg.gemini_model_id}`")
             st.caption(f"**Embedding Model:** `{cfg.embedding_model_id}` (384-dim, Local)")
             st.caption(f"**Vector Store:** ChromaDB (`storage/chroma`)")
             st.caption(f"**Top-K Chunks:** {cfg.top_k_chunks}")
@@ -340,6 +368,50 @@ def main() -> None:
                     })
 
                 except Exception as exc:
+                    err_str = str(exc)
+                    if ("429" in err_str or "resource_exhausted" in err_str or "quota" in err_str) and ollama_is_online:
+                        st.warning("⚠️ Cloud API quota reached. Automatically generating answer with Local Ollama (Phi-3)...")
+                        try:
+                            pipeline.llm = OllamaProvider(model_id=cfg.ollama_model_id)
+                            pipeline.vision.llm = pipeline.llm
+                            if input_type == InputType.TEXT_DOC_QUERY or not attached_img:
+                                r_res = pipeline.ask(query, doc_ids=filter_doc_ids)
+                                ans_content = r_res.answer
+                                citations = r_res.citations
+                                sources_data = [
+                                    {
+                                        "citation": s.citation,
+                                        "similarity": s.similarity,
+                                        "chunk_type": s.chunk_type,
+                                        "text": s.text,
+                                    }
+                                    for s in r_res.sources
+                                ]
+                                st.markdown(ans_content)
+                                if citations:
+                                    citation_html = " ".join(
+                                        f"<span style='background-color:#E0F2FE; color:#0369A1; padding:3px 8px; border-radius:12px; font-size:12px; font-weight:600; margin-right:4px;'>{c}</span>"
+                                        for c in citations
+                                    )
+                                    st.markdown(citation_html, unsafe_allow_html=True)
+                                if sources_data:
+                                    with st.expander(f"🔍 Retrieved Source Context ({len(sources_data)} chunks)", expanded=False):
+                                        for s_idx, src in enumerate(sources_data, 1):
+                                            st.markdown(
+                                                f"**[{s_idx}] {src['citation']}** — *Similarity: {src['similarity']:.3f} | Type: `{src['chunk_type']}`*"
+                                            )
+                                            st.code(src["text"], language="markdown")
+                                            st.divider()
+                                st.session_state.messages.append({
+                                    "role": "assistant",
+                                    "content": ans_content,
+                                    "citations": citations,
+                                    "sources": sources_data,
+                                })
+                                return
+                        except Exception as o_exc:
+                            logger.error("Local fallback failed: %s", o_exc)
+
                     st.error(f"Generation error: {exc}")
                     logger.exception("Chat generation failed: %s", exc)
 

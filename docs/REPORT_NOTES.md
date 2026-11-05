@@ -63,6 +63,7 @@ where $t_{\text{base}} = 2.0$ seconds and $\text{attempt} \in \{0, 1, 2\}$.
 | **Embeddings** | `BAAI/bge-small-en-v1.5` | OpenAI `text-embedding-ada-002` | Local, private, zero API cost, runs on CPU in <20ms, top MTEB benchmark score in the <150M parameter class. |
 | **OCR Engine** | `RapidOCR` (ONNX Runtime) | `pytesseract` (Tesseract) | Pure Python/pip installable. Zero OS binary dependencies (no need to install `tesseract.exe` or modify Windows PATH). Far superior on rotated or degraded text. |
 | **Vector DB** | `ChromaDB` (Embedded) | `Pinecone` / `Milvus` | Zero cloud subscription, runs in-process, disk persistent (`storage/chroma/`), zero external Docker containers. |
+| **Inference Engine** | Dual: `Ollama` (Local Phi-3) & `Gemini` (Cloud) | Cloud-Only LLMs | Provides 100% offline edge privacy and zero API quota constraints via local Ollama SLMs, with cloud Gemini available for zero-setup deployment. |
 | **Web UI** | `Streamlit` | `Flask` / `React` | Rapid Python-native prototyping, reactive state management, seamless file uploaders, and built-in widget testing (`AppTest`). |
 
 ---
@@ -84,3 +85,7 @@ where $t_{\text{base}} = 2.0$ seconds and $\text{attempt} \in \{0, 1, 2\}$.
 ### Q4: How does your system support Mixed Queries?
 **Viva Answer**:  
 *"In a mixed query, the user attaches an image and asks a question that requires knowledge from both the image and indexed documents. Our pipeline first embeds the text query and performs dense vector search in ChromaDB to retrieve the most relevant text chunks. Then, rather than making multiple separate API calls, it constructs a unified prompt containing both the retrieved document context and the attached image bytes, passing both in a single multimodal call to Gemini Vision. The model cross-references both modalities and cites both the document pages and the attached image."*
+
+### Q5: Why implement a dual Cloud & Local Small Language Model (SLM) provider?
+**Viva Answer**:  
+*"In real-world enterprise and defense deployments, sending proprietary documents to third-party cloud APIs violates strict data residency and confidentiality requirements. Additionally, cloud free-tier APIs enforce strict rate and daily quota limits (e.g. 15 RPM). By defining an `LLMProvider` abstract contract, our architecture seamlessly supports both cloud-based Gemini and a 100% offline local SLM via Ollama (Microsoft Phi-3 Mini 3.8B / TinyLlama 1.1B). If cloud quotas are reached, our system automatically falls back to the local SLM, ensuring uninterrupted service with zero data leakage and zero token cost."*

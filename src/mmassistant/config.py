@@ -26,12 +26,25 @@ load_dotenv(dotenv_path=BASE_DIR / ".env")
 class AppConfig:
     """Application configuration values and directory paths."""
 
+    # Provider Selection ('ollama' or 'gemini')
+    llm_provider: str = field(
+        default_factory=lambda: os.getenv("LLM_PROVIDER", "ollama").strip().lower()
+    )
+
+    # Local Ollama Settings
+    ollama_base_url: str = field(
+        default_factory=lambda: os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").strip()
+    )
+    ollama_model_id: str = field(
+        default_factory=lambda: os.getenv("OLLAMA_MODEL_ID", "phi3:latest").strip()
+    )
+
     # Gemini API Settings
     google_api_key: str = field(
         default_factory=lambda: os.getenv("GOOGLE_API_KEY", "").strip()
     )
     gemini_model_id: str = field(
-        default_factory=lambda: os.getenv("GEMINI_MODEL_ID", "gemini-2.0-flash").strip()
+        default_factory=lambda: os.getenv("GEMINI_MODEL_ID", "gemini-3.5-flash-lite").strip()
     )
 
     # Embedding & Vector Store Settings
