@@ -2,7 +2,8 @@
 Command Line Interface (CLI) for Multimodal AI Assistant.
 
 Provides commands to test LLM connectivity, verify configuration,
-ingest documents, list/delete indexed files, and run RAG/vision queries.
+ingest documents (with OCR and figure extraction), and execute Document RAG,
+Image Q&A, and Mixed Multimodal queries.
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ from pathlib import Path
 
 from mmassistant.config import get_config
 from mmassistant.llm.gemini import GeminiProvider
-from mmassistant.pipeline import RAGPipeline
+from mmassistant.pipeline import MultimodalPipeline
 
 logging.basicConfig(
     level=logging.INFO,
@@ -76,17 +77,23 @@ def cmd_ingest(args: argparse.Namespace) -> int:
         return 1
 
     print(f"Ingesting document: {target_path.name}...")
-    pipeline = RAGPipeline()
+    pipeline = MultimodalPipeline()
     try:
-        result = pipeline.ingest_document(target_path, force_reindex=args.force)
+        result = pipeline.ingest_document(
+            target_path,
+            force_reindex=args.force,
+            extract_figures=args.figures,
+        )
         if result["status"] == "skipped":
             print(f"[SKIPPED] Document '{result['filename']}' is already indexed (Doc ID: {result['doc_id']}).")
             print("Use --force to re-index.")
         elif result["status"] == "indexed":
             print(f"[SUCCESS] Successfully indexed '{result['filename']}'!")
-            print(f"  Doc ID:      {result['doc_id']}")
-            print(f"  Total Pages: {result['total_pages']}")
-            print(f"  Chunks:      {result['chunks']}")
+            print(f"  Doc ID:        {result['doc_id']}")
+            print(f"  Total Pages:   {result['total_pages']}")
+            print(f"  Total Chunks:  {result['chunks']}")
+            if result.get("figure_chunks"):
+                print(f"  Figure Chunks: {result['figure_chunks']}")
         else:
             print(f"[WARNING] Ingestion completed with status: {result['status']}")
         return 0
@@ -98,7 +105,7 @@ def cmd_ingest(args: argparse.Namespace) -> int:
 
 def cmd_list_docs(_args: argparse.Namespace) -> int:
     """List all documents currently indexed in ChromaDB."""
-    pipeline = RAGPipeline()
+    pipeline = MultimodalPipeline()
     docs = pipeline.list_documents()
     print("=" * 65)
     print(f"  Indexed Documents in Vector Store (Total: {len(docs)})")
@@ -120,7 +127,7 @@ def cmd_list_docs(_args: argparse.Namespace) -> int:
 
 def cmd_delete_doc(args: argparse.Namespace) -> int:
     """Delete a document by its doc_id."""
-    pipeline = RAGPipeline()
+    pipeline = MultimodalPipeline()
     count = pipeline.delete_document(args.doc_id)
     if count > 0:
         print(f"[SUCCESS] Deleted document '{args.doc_id}' ({count} chunks removed).")
@@ -136,11 +143,15 @@ def cmd_ask(args: argparse.Namespace) -> int:
         print("[ERROR] GOOGLE_API_KEY is not configured in .env.")
         return 1
 
-    pipeline = RAGPipeline()
+    pipeline = MultimodalPipeline()
     print(f"Query: {args.query}\nSearching indexed documents...")
 
     doc_ids = [args.doc_id] if args.doc_id else None
-    result = pipeline.ask(args.query, doc_ids=doc_ids)
+    try:
+        result = pipeline.ask(args.query, doc_ids=doc_ids)
+    except Exception as exc:
+        print(f"[ERROR] Query failed: {exc}")
+        return 1
 
     print("\n" + "=" * 60)
     print("  ANSWER")
@@ -163,6 +174,76 @@ def cmd_ask(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_ask_image(args: argparse.Namespace) -> int:
+    """Execute direct computer vision Q&A on an image."""
+    cfg = get_config()
+    if not cfg.has_api_key:
+        print("[ERROR] GOOGLE_API_KEY is not configured in .env.")
+        return 1
+
+    img_path = Path(args.image)
+    if not img_path.exists():
+        print(f"[ERROR] Image file does not exist: {img_path}")
+        return 1
+
+    pipeline = MultimodalPipeline()
+    print(f"Analyzing image: {img_path.name}...\nQuestion: {args.query}")
+
+    try:
+        result = pipeline.ask_image(img_path, args.query)
+        print("\n" + "=" * 60)
+        print("  VISUAL ANALYSIS")
+        print("=" * 60)
+        print(result.answer)
+        print("=" * 60)
+        return 0
+    except Exception as exc:
+        print(f"[ERROR] Vision analysis failed: {exc}")
+        return 1
+
+
+def cmd_ask_mixed(args: argparse.Namespace) -> int:
+    """Execute a mixed query combining an attached image and indexed document context."""
+    cfg = get_config()
+    if not cfg.has_api_key:
+        print("[ERROR] GOOGLE_API_KEY is not configured in .env.")
+        return 1
+
+    img_path = Path(args.image)
+    if not img_path.exists():
+        print(f"[ERROR] Image file does not exist: {img_path}")
+        return 1
+
+    pipeline = MultimodalPipeline()
+    print(f"Executing mixed query across document index and image: {img_path.name}...")
+    print(f"Query: {args.query}")
+
+    try:
+        result = pipeline.ask_mixed(args.query, img_path)
+        print("\n" + "=" * 60)
+        print("  MULTIMODAL ANSWER")
+        print("=" * 60)
+        print(result.answer)
+        print("=" * 60)
+
+        if result.citations:
+            print(f"Document Citations: {', '.join(result.citations)}")
+
+        if result.sources:
+            print("\n" + "-" * 60)
+            print(f"  RETRIEVED CONTEXT CHUNKS ({len(result.sources)} chunks)")
+            print("-" * 60)
+            for idx, src in enumerate(result.sources, 1):
+                print(f"[{idx}] {src.citation} | Sim: {src.similarity:.3f} | Type: {src.chunk_type}")
+                print(f"    {src.text[:180]}...")
+                print("-" * 60)
+
+        return 0
+    except Exception as exc:
+        print(f"[ERROR] Mixed query failed: {exc}")
+        return 1
+
+
 def main() -> None:
     """Entry point for CLI commands."""
     parser = argparse.ArgumentParser(
@@ -181,6 +262,7 @@ def main() -> None:
     ingest_p = subparsers.add_parser("ingest", help="Ingest and index a document (PDF, DOCX, TXT, MD)")
     ingest_p.add_argument("path", help="Path to document file")
     ingest_p.add_argument("--force", action="store_true", help="Force re-indexing even if already indexed")
+    ingest_p.add_argument("--figures", action="store_true", help="Enable PDF figure extraction and vision captioning")
 
     # Command: list-docs
     subparsers.add_parser("list-docs", help="List all indexed documents and statistics")
@@ -195,10 +277,15 @@ def main() -> None:
     ask_p.add_argument("--doc-id", default=None, help="Optional Doc ID to restrict search to")
     ask_p.add_argument("--show-sources", action="store_true", default=True, help="Display retrieved source chunks")
 
-    # Command: ask-image (Phase 3)
-    ask_img_p = subparsers.add_parser("ask-image", help="Ask a question about an image (Phase 3)")
-    ask_img_p.add_argument("--image", required=True, help="Path to image file (PNG, JPG, WEBP)")
+    # Command: ask-image
+    ask_img_p = subparsers.add_parser("ask-image", help="Ask a question about an image (PNG, JPG, WEBP)")
+    ask_img_p.add_argument("--image", required=True, help="Path to image file")
     ask_img_p.add_argument("query", help="Question about the image")
+
+    # Command: ask-mixed
+    ask_mix_p = subparsers.add_parser("ask-mixed", help="Ask a question combining an attached image and indexed documents")
+    ask_mix_p.add_argument("--image", required=True, help="Path to image file")
+    ask_mix_p.add_argument("query", help="Question combining the image and indexed document knowledge")
 
     args = parser.parse_args()
 
@@ -219,8 +306,9 @@ def main() -> None:
     elif args.command == "ask":
         sys.exit(cmd_ask(args))
     elif args.command == "ask-image":
-        print(f"Command '{args.command}' will be activated in Phase 3. Run 'mmassistant --help' for available commands.")
-        sys.exit(0)
+        sys.exit(cmd_ask_image(args))
+    elif args.command == "ask-mixed":
+        sys.exit(cmd_ask_mixed(args))
     else:
         parser.print_help()
         sys.exit(1)

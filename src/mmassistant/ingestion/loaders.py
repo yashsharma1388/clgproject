@@ -102,6 +102,29 @@ def load_pdf(path: Path) -> Document:
             # Extract native text
             page_text = page.get_text("text").strip()
 
+            # Scanned / sparse page detection: if page has very little native text (<50 chars), run RapidOCR
+            ocr_applied = False
+            ocr_conf = 0.0
+            if len(page_text) < 50:
+                try:
+                    from mmassistant.ingestion.ocr import ocr_pdf_page
+
+                    detected_ocr_text, avg_conf = ocr_pdf_page(page, dpi=150)
+                    if len(detected_ocr_text.strip()) > len(page_text):
+                        logger.info(
+                            "Page %d of '%s' appears scanned/sparse (%d native chars). RapidOCR recovered %d chars (conf: %.2f).",
+                            page_num,
+                            path.name,
+                            len(page_text),
+                            len(detected_ocr_text),
+                            avg_conf,
+                        )
+                        page_text = detected_ocr_text
+                        ocr_applied = True
+                        ocr_conf = avg_conf
+                except Exception as ocr_err:
+                    logger.debug("OCR attempt skipped on page %d: %s", page_num, ocr_err)
+
             # Extract tables if available
             extracted_tables: list[str] = []
             try:
@@ -119,7 +142,12 @@ def load_pdf(path: Path) -> Document:
                     page_number=page_num,
                     text=page_text,
                     tables=extracted_tables,
-                    metadata={"page_width": page.rect.width, "page_height": page.rect.height},
+                    metadata={
+                        "page_width": page.rect.width,
+                        "page_height": page.rect.height,
+                        "ocr_applied": ocr_applied,
+                        "ocr_confidence": ocr_conf,
+                    },
                 )
             )
     finally:

@@ -11,8 +11,18 @@ from mmassistant.llm.base import LLMProvider, LLMResponse
 class MockLLMProvider(LLMProvider):
     """Mock LLM Provider for unit testing."""
 
-    def __init__(self, response_text: str = "This is a mocked response with citation [Doc: test.pdf, Page: 1].") -> None:
+    def __init__(
+        self,
+        response_text: str = "This is a mocked response with citation [Doc: test.pdf, Page: 1].",
+        multimodal_response_text: str | None = None,
+    ) -> None:
         self.response_text = response_text
+        if multimodal_response_text is not None:
+            self.multimodal_response_text = multimodal_response_text
+        elif response_text != "This is a mocked response with citation [Doc: test.pdf, Page: 1].":
+            self.multimodal_response_text = response_text
+        else:
+            self.multimodal_response_text = "Mocked vision analysis: The image depicts a sample test chart."
         self.generate_text_calls: list[dict[str, Any]] = []
         self.generate_multimodal_calls: list[dict[str, Any]] = []
 
@@ -50,7 +60,7 @@ class MockLLMProvider(LLMProvider):
             "temperature": temperature,
         })
         return LLMResponse(
-            content="Mocked vision analysis: The image depicts a sample test chart.",
+            content=self.multimodal_response_text,
             model_name="mock-gemini-vision",
             prompt_tokens=25,
             completion_tokens=12,
