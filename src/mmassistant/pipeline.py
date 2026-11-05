@@ -225,7 +225,7 @@ class MultimodalPipeline:
             temperature=0.1,
         )
 
-        citations = list(set(re.findall(r"\[Doc:\s*[^,]+,\s*Page:\s*\d+\]", response.content)))
+        citations = list(set(re.findall(r"\[Doc:\s*[^,]+,\s*Page:\s*[\d\.]+\]", response.content)))
 
         return RAGResult(
             query=query_clean,
@@ -280,7 +280,7 @@ class MultimodalPipeline:
             temperature=0.2,
         )
 
-        citations = list(set(re.findall(r"\[Doc:\s*[^,]+,\s*Page:\s*\d+\]", response.content)))
+        citations = list(set(re.findall(r"\[Doc:\s*[^,]+,\s*Page:\s*[\d\.]+\]", response.content)))
 
         return MixedResult(
             query=query,

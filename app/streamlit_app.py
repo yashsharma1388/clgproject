@@ -129,8 +129,15 @@ def render_sidebar(pipeline: MultimodalPipeline, cfg: AppConfig) -> None:
             force_reindex = st.checkbox("Force Re-index", value=False)
 
         if uploaded_files:
-            if st.button("📥 Index Uploaded Documents", use_container_width=True, type="primary"):
-                for uploaded_file in uploaded_files:
+            # Auto-index new files immediately or when button is clicked
+            indexed_filenames = {d["filename"] for d in pipeline.list_documents()}
+            unindexed = [f for f in uploaded_files if (f.name not in indexed_filenames) or force_reindex]
+
+            btn_clicked = st.button("📥 Index Uploaded Documents", use_container_width=True, type="primary")
+
+            if unindexed or btn_clicked:
+                to_index = uploaded_files if btn_clicked else unindexed
+                for uploaded_file in to_index:
                     save_path = cfg.upload_dir / uploaded_file.name
                     with open(save_path, "wb") as f:
                         f.write(uploaded_file.getbuffer())
