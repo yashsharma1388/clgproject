@@ -18,7 +18,7 @@ from mmassistant.llm.base import LLMProvider, LLMResponse
 logger = logging.getLogger(__name__)
 
 # Known stable fallback models in priority order
-FALLBACK_MODELS = ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-flash-latest"]
+FALLBACK_MODELS = ["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.8-flash", "gemini-flash-latest"]
 
 
 class GeminiProvider(LLMProvider):
@@ -123,10 +123,18 @@ class GeminiProvider(LLMProvider):
                 return response, model_name
             except Exception as exc:
                 err_str = str(exc).lower()
-                is_unavailable = "503" in err_str or "404" in err_str or "unavailable" in err_str or "not_found" in err_str
+                is_unavailable = (
+                    "503" in err_str
+                    or "404" in err_str
+                    or "429" in err_str
+                    or "unavailable" in err_str
+                    or "not_found" in err_str
+                    or "resource_exhausted" in err_str
+                    or "quota" in err_str
+                )
                 if is_unavailable and model_name != candidate_models[-1]:
                     logger.warning(
-                        "Model '%s' unavailable (%s). Attempting fallback...",
+                        "Model '%s' hit error or quota limit (%s). Falling back to next available model...",
                         model_name,
                         exc,
                     )

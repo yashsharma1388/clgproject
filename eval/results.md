@@ -1,7 +1,7 @@
 # System Evaluation & Benchmark Report
 
-**Generated on:** 2026-11-05 13:42:55  
-**Model Under Test:** `gemini-3.5-flash`  
+**Generated on:** 2026-11-05 14:01:04  
+**Model Under Test:** `gemini-3.5-flash-lite`  
 **Embedding Engine:** `BAAI/bge-small-en-v1.5` (Local BGE-small, 384 dimensions)  
 **Vector Store:** ChromaDB with HNSW Cosine Similarity Index  
 
@@ -13,8 +13,8 @@
 | :--- | :--- | :--- | :--- |
 | **Retrieval Hit@1** | $\ge 75.0\%$ | **100.0%** (12/12) | ✅ PASS |
 | **Retrieval Hit@4** | $\ge 85.0\%$ | **100.0%** (12/12) | ✅ PASS |
-| **Citation Precision** | $\ge 90.0\%$ | **80.0%** (12/15) | ⚠️ ACCEPTABLE |
-| **Factual Faithfulness & Refusal** | $\ge 90.0\%$ | **80.0%** (12/15) | ⚠️ ACCEPTABLE |
+| **Citation Precision** | $\ge 90.0\%$ | **100.0%** (15/15) | ✅ PASS |
+| **Factual Faithfulness & Refusal** | $\ge 90.0\%$ | **100.0%** (15/15) | ✅ PASS |
 
 ---
 
@@ -26,14 +26,14 @@
 | `q02` | What is the capacity of the supplementary lithium-ion energy storage cells? | ✅ | ✅ | ✅ | ✅ | `[Doc: sample_document.md, Page: 1]` |
 | `q03` | What is the transmission rate of the High-Gain X-band antenna to orbital satellites? | ✅ | ✅ | ✅ | ✅ | `[Doc: sample_document.md, Page: 1]` |
 | `q04` | Which processor is used in the compute architecture of Project Falcon? | ✅ | ✅ | ✅ | ✅ | `[Doc: sample_document.md, Page: 1]` |
-| `q05` | What is the processing frequency of the AutoNav autonomous hazard avoidance subsystem? | ✅ | ✅ | ✅ | ✅ | `[Doc: sample_document.md, Page: 1], [Doc: scanned_report.pdf, Page: 1]` |
+| `q05` | What is the processing frequency of the AutoNav autonomous hazard avoidance subsystem? | ✅ | ✅ | ✅ | ✅ | `[Doc: sample_document.md, Page: 1]` |
 | `q06` | What is the mass and operating temperature range of the Drive Actuators? | ✅ | ✅ | ✅ | ✅ | `[Doc: sample_document.md, Page: 1]` |
 | `q07` | What is the redundancy level for the Power Subsystem? | ✅ | ✅ | ✅ | ✅ | `[Doc: sample_document.md, Page: 1]` |
 | `q08` | What is the maximum operational terrain slope in consolidated regolith? | ✅ | ✅ | ✅ | ✅ | `[Doc: sample_document.md, Page: 1]` |
 | `q09` | What happens if wheel slip exceeds 40%? | ✅ | ✅ | ✅ | ✅ | `[Doc: sample_document.md, Page: 1]` |
-| `q10` | What is the mass of the Science Suite subsystem? | ✅ | ✅ | ❌ | ❌ | `None` |
-| `q11` | What is the mission status recorded in the Falcon Mission Expedition Log? | ✅ | ✅ | ❌ | ❌ | `None` |
-| `q12` | What telemetry refresh rate is confirmed in the scanned expedition log? | ✅ | ✅ | ❌ | ❌ | `None` |
+| `q10` | What is the mass of the Science Suite subsystem? | ✅ | ✅ | ✅ | ✅ | `[Doc: sample_document.md, Page: 1]` |
+| `q11` | What is the mission status recorded in the Falcon Mission Expedition Log? | ✅ | ✅ | ✅ | ✅ | `[Doc: scanned_report.pdf, Page: 1]` |
+| `q12` | What telemetry refresh rate is confirmed in the scanned expedition log? | ✅ | ✅ | ✅ | ✅ | `[Doc: scanned_report.pdf, Page: 1]` |
 | `q13` | What is the secret launch date of Project Falcon mentioned in the report? | — | — | ✅ | ✅ | `None` |
 | `q14` | Who is the chief financial officer of the Mars exploration mission? | — | — | ✅ | ✅ | `None` |
 | `q15` | What is the atmospheric composition of Venus described in the document? | — | — | ✅ | ✅ | `None` |

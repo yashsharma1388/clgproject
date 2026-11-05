@@ -95,8 +95,8 @@ def run_evaluation() -> dict[str, Any]:
         else:
             negative_count += 1
 
-        # 2. Run Generation (with a small sleep to respect free-tier RPM)
-        time.sleep(1.0)
+        # 2. Run Generation (with sleep to respect free-tier 15 RPM limit)
+        time.sleep(3.5)
         try:
             rag_res: RAGResult = pipeline.ask(query, top_k=4)
             answer = rag_res.answer
