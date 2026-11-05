@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mm-assistant"
+version = "0.1.0"
+description = "Multimodal AI Assistant for Intelligent Document and Visual Understanding"
+readme = "README.md"
+authors = [{ name = "B.Tech Capstone Project" }]
+requires-python = ">=3.11"
+dependencies = [
+    "google-genai>=0.1.1",
+    "sentence-transformers>=3.0.0",
+    "chromadb>=0.5.0",
+    "langchain-text-splitters>=0.2.0",
+    "pymupdf>=1.24.0",
+    "python-docx>=1.1.0",
+    "rapidocr-onnxruntime>=1.3.0",
+    "pillow>=10.0.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.7.0",
+    "streamlit>=1.35.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-mock>=3.12.0",
+]
+
+[project.scripts]
+mmassistant = "mmassistant.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
