@@ -1,0 +1,137 @@
+[
+  {
+    "id": "q01",
+    "query": "What is the continuous electrical power delivered by the MMRTG in Project Falcon?",
+    "ground_truth_answer": "240 Watts of continuous electrical power.",
+    "expected_doc": "sample_document.md",
+    "expected_page": 1,
+    "expected_keywords": ["240", "watts", "mmrtg"],
+    "is_negative": false
+  },
+  {
+    "id": "q02",
+    "query": "What is the capacity of the supplementary lithium-ion energy storage cells?",
+    "ground_truth_answer": "45 Ah lithium-ion energy storage cells.",
+    "expected_doc": "sample_document.md",
+    "expected_page": 1,
+    "expected_keywords": ["45", "ah"],
+    "is_negative": false
+  },
+  {
+    "id": "q03",
+    "query": "What is the transmission rate of the High-Gain X-band antenna to orbital satellites?",
+    "ground_truth_answer": "2.5 Mbps transmission to orbital relay satellites.",
+    "expected_doc": "sample_document.md",
+    "expected_page": 1,
+    "expected_keywords": ["2.5", "mbps"],
+    "is_negative": false
+  },
+  {
+    "id": "q04",
+    "query": "Which processor is used in the compute architecture of Project Falcon?",
+    "ground_truth_answer": "Radiation-hardened RAD750 PowerPC running at 133 MHz.",
+    "expected_doc": "sample_document.md",
+    "expected_page": 1,
+    "expected_keywords": ["rad750", "133"],
+    "is_negative": false
+  },
+  {
+    "id": "q05",
+    "query": "What is the processing frequency of the AutoNav autonomous hazard avoidance subsystem?",
+    "ground_truth_answer": "4 Hz.",
+    "expected_doc": "sample_document.md",
+    "expected_page": 1,
+    "expected_keywords": ["4", "hz"],
+    "is_negative": false
+  },
+  {
+    "id": "q06",
+    "query": "What is the mass and operating temperature range of the Drive Actuators?",
+    "ground_truth_answer": "Mass of 62.0 kg and operating temperature from -120 to +50 °C.",
+    "expected_doc": "sample_document.md",
+    "expected_page": 1,
+    "expected_keywords": ["62", "-120"],
+    "is_negative": false
+  },
+  {
+    "id": "q07",
+    "query": "What is the redundancy level for the Power Subsystem?",
+    "ground_truth_answer": "Triple Modular Redundancy.",
+    "expected_doc": "sample_document.md",
+    "expected_page": 1,
+    "expected_keywords": ["triple", "modular"],
+    "is_negative": false
+  },
+  {
+    "id": "q08",
+    "query": "What is the maximum operational terrain slope in consolidated regolith?",
+    "ground_truth_answer": "32 degrees in consolidated regolith.",
+    "expected_doc": "sample_document.md",
+    "expected_page": 1,
+    "expected_keywords": ["32", "degrees"],
+    "is_negative": false
+  },
+  {
+    "id": "q09",
+    "query": "What happens if wheel slip exceeds 40%?",
+    "ground_truth_answer": "The autonomous drive controller engages emergency slip-mitigation maneuvers.",
+    "expected_doc": "sample_document.md",
+    "expected_page": 1,
+    "expected_keywords": ["slip", "mitigation"],
+    "is_negative": false
+  },
+  {
+    "id": "q10",
+    "query": "What is the mass of the Science Suite subsystem?",
+    "ground_truth_answer": "31.8 kg.",
+    "expected_doc": "sample_document.md",
+    "expected_page": 1,
+    "expected_keywords": ["31.8"],
+    "is_negative": false
+  },
+  {
+    "id": "q11",
+    "query": "What is the mission status recorded in the Falcon Mission Expedition Log?",
+    "ground_truth_answer": "Autonomous exploration vehicle entered subterranean cave.",
+    "expected_doc": "scanned_report.pdf",
+    "expected_page": 1,
+    "expected_keywords": ["subterranean", "cave"],
+    "is_negative": false
+  },
+  {
+    "id": "q12",
+    "query": "What telemetry refresh rate is confirmed in the scanned expedition log?",
+    "ground_truth_answer": "4Hz AutoNav refresh rate.",
+    "expected_doc": "scanned_report.pdf",
+    "expected_page": 1,
+    "expected_keywords": ["4hz"],
+    "is_negative": false
+  },
+  {
+    "id": "q13",
+    "query": "What is the secret launch date of Project Falcon mentioned in the report?",
+    "ground_truth_answer": "Refusal: Not mentioned in documents.",
+    "expected_doc": null,
+    "expected_page": null,
+    "expected_keywords": ["cannot find sufficient information"],
+    "is_negative": true
+  },
+  {
+    "id": "q14",
+    "query": "Who is the chief financial officer of the Mars exploration mission?",
+    "ground_truth_answer": "Refusal: Not mentioned in documents.",
+    "expected_doc": null,
+    "expected_page": null,
+    "expected_keywords": ["cannot find sufficient information"],
+    "is_negative": true
+  },
+  {
+    "id": "q15",
+    "query": "What is the atmospheric composition of Venus described in the document?",
+    "ground_truth_answer": "Refusal: Not mentioned in documents.",
+    "expected_doc": null,
+    "expected_page": null,
+    "expected_keywords": ["cannot find sufficient information"],
+    "is_negative": true
+  }
+]

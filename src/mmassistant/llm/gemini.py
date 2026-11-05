@@ -80,7 +80,15 @@ class GeminiProvider(LLMProvider):
                 last_exception = exc
 
                 is_rate_limit = "429" in error_str or "resource_exhausted" in error_str or "quota" in error_str
-                is_transient = "503" in error_str or "unavailable" in error_str or "timeout" in error_str
+                is_transient = (
+                    "503" in error_str
+                    or "unavailable" in error_str
+                    or "timeout" in error_str
+                    or "disconnected" in error_str
+                    or "protocol" in error_str
+                    or "connection" in error_str
+                    or "remoteprotocolerror" in error_str
+                )
 
                 if (is_rate_limit or is_transient) and attempt < self.max_retries:
                     delay = (self.base_backoff_seconds * (2 ** attempt)) + random.uniform(0.1, 0.5)
