@@ -25,6 +25,10 @@ uploads/
 htmlcov/
 .mypy_cache/
 
+# Executables & Binaries
+*.exe
+cloudflared.exe
+
 # IDE & OS
 .vscode/
 .idea/
