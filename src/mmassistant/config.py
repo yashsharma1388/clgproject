@@ -70,7 +70,7 @@ class AppConfig:
         default_factory=lambda: int(os.getenv("TOP_K_CHUNKS", "4"))
     )
     similarity_threshold: float = field(
-        default_factory=lambda: float(os.getenv("SIMILARITY_THRESHOLD", "0.35"))
+        default_factory=lambda: float(os.getenv("SIMILARITY_THRESHOLD", "0.30"))
     )
 
     # Ingestion & Vision Feature Toggles

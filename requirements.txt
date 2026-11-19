@@ -24,3 +24,6 @@ streamlit>=1.35.0
 # Testing & Development
 pytest>=8.0.0
 pytest-mock>=3.12.0
+
+# Install this project's own package (needed for Streamlit Cloud)
+.

@@ -10,9 +10,16 @@ from __future__ import annotations
 import io
 import logging
 import os
+import sys
 import shutil
 from pathlib import Path
 from typing import Any
+
+# ── Ensure mmassistant is importable (needed for Streamlit Cloud & pip-free envs) ──
+_SRC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src")
+if _SRC_DIR not in sys.path:
+    sys.path.insert(0, _SRC_DIR)
+
 import streamlit as st
 from PIL import Image
 
