@@ -351,33 +351,33 @@ def render_sidebar(pipeline: MultimodalPipeline, cfg: AppConfig) -> bool:
         ollama_checker = OllamaProvider()
         ollama_is_online = ollama_checker.is_available()
 
-        provider_options = [
-            "Local Ollama (Offline / Phi-3)",
-            "Google Gemini (Cloud API)",
-        ]
-        default_idx = 0 if (cfg.llm_provider == "ollama" and ollama_is_online) else 1
+        if ollama_is_online:
+            provider_options = [
+                "Google Gemini (Cloud API)",
+                "Local Ollama (Offline / Phi-3)",
+            ]
+            default_idx = 1 if cfg.llm_provider == "ollama" else 0
+            provider_choice = st.radio(
+                "Select Inference Model Provider:",
+                options=provider_options,
+                index=default_idx,
+                key="model_provider_selector",
+                label_visibility="collapsed",
+                help="Choose between Google Gemini Cloud API and offline local Phi-3 SLM.",
+            )
+            use_ollama = "Local Ollama" in provider_choice
+        else:
+            use_ollama = False
 
-        provider_choice = st.radio(
-            "Select Inference Model Provider:",
-            options=provider_options,
-            index=default_idx,
-            label_visibility="collapsed",
-            help="Choose between 100% offline edge model (Phi-3) and cloud Gemini API.",
-        )
-        use_ollama = "Local Ollama" in provider_choice
-
-        if use_ollama:
-            if ollama_is_online:
-                st.markdown(
-                    f"""
-                    <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 0.82rem; color: #6EE7B7;">
-                        <span class="status-dot"></span> <b>Local Engine:</b> <code>{cfg.ollama_model_id}</code> (Unlimited & Private)
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.warning("⚠️ Local Ollama server offline. Run `ollama serve`.")
+        if use_ollama and ollama_is_online:
+            st.markdown(
+                f"""
+                <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 0.82rem; color: #6EE7B7;">
+                    <span class="status-dot"></span> <b>Local Engine:</b> <code>{cfg.ollama_model_id}</code> (Unlimited & Private)
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
             pipeline.llm = OllamaProvider(model_id=cfg.ollama_model_id)
             pipeline.vision.llm = pipeline.llm
         else:
@@ -425,14 +425,11 @@ def render_sidebar(pipeline: MultimodalPipeline, cfg: AppConfig) -> bool:
             force_reindex = st.checkbox("Force Re-index", value=False)
 
         if uploaded_files:
-            indexed_filenames = {d["filename"] for d in pipeline.list_documents()}
-            unindexed = [f for f in uploaded_files if (f.name not in indexed_filenames) or force_reindex]
-
             btn_clicked = st.button("⚡ Index Uploaded Documents", use_container_width=True, type="primary")
 
-            if unindexed or btn_clicked:
-                to_index = uploaded_files if btn_clicked else unindexed
-                for uploaded_file in to_index:
+            if btn_clicked:
+                success_count = 0
+                for uploaded_file in uploaded_files:
                     save_path = cfg.upload_dir / uploaded_file.name
                     with open(save_path, "wb") as f:
                         f.write(uploaded_file.getbuffer())
@@ -445,12 +442,17 @@ def render_sidebar(pipeline: MultimodalPipeline, cfg: AppConfig) -> bool:
                                 extract_figures=extract_figures,
                             )
                             if res["status"] == "indexed":
-                                st.success(f"✅ Indexed **{res['filename']}** ({res['chunks']} chunks, {res['total_pages']} pages)")
+                                st.toast(f"Indexed {res['filename']} ({res['chunks']} chunks)", icon="✅")
+                                success_count += 1
                             elif res["status"] == "skipped":
-                                st.info(f"ℹ️ **{res['filename']}** was already indexed.")
+                                st.toast(f"{res['filename']} is already indexed.", icon="ℹ️")
+                                success_count += 1
                         except Exception as exc:
                             st.error(f"Failed to index '{uploaded_file.name}': {exc}")
-                st.rerun()
+                            logger.exception("Ingestion failed: %s", exc)
+
+                if success_count > 0:
+                    st.rerun()
 
         st.divider()
 
@@ -580,7 +582,8 @@ def main() -> None:
     # Executive Hero Banner
     active_docs = pipeline.list_documents()
     total_chunks = sum(d["chunk_count"] for d in active_docs)
-    active_model = f"ollama/{cfg.ollama_model_id}" if cfg.llm_provider == "ollama" else cfg.gemini_model_id
+    ollama_online = OllamaProvider().is_available()
+    active_model = f"ollama/{cfg.ollama_model_id}" if (cfg.llm_provider == "ollama" and ollama_online) else cfg.gemini_model_id
 
     st.markdown(
         f"""

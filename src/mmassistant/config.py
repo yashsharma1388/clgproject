@@ -41,9 +41,9 @@ def _resolve_google_api_key() -> str:
 class AppConfig:
     """Application configuration values and directory paths."""
 
-    # Provider Selection ('ollama' or 'gemini')
+    # Provider Selection ('gemini' or 'ollama') — defaults to 'gemini' for guaranteed cloud & local operation
     llm_provider: str = field(
-        default_factory=lambda: os.getenv("LLM_PROVIDER", "ollama").strip().lower()
+        default_factory=lambda: os.getenv("LLM_PROVIDER", "gemini").strip().lower()
     )
 
     # Local Ollama Settings
