@@ -23,6 +23,14 @@ if _SRC_DIR not in sys.path:
 import streamlit as st
 from PIL import Image
 
+# ── Load Streamlit Cloud secrets into environment (before config import) ──
+try:
+    for key in ("GOOGLE_API_KEY", "LLM_PROVIDER", "GEMINI_MODEL_ID"):
+        if key in st.secrets:
+            os.environ[key] = str(st.secrets[key])
+except Exception:
+    pass  # No secrets configured — will fall back to .env
+
 from mmassistant.config import AppConfig, get_config
 from mmassistant.llm.gemini import GeminiProvider
 from mmassistant.llm.ollama import OllamaProvider
