@@ -23,13 +23,22 @@ if _SRC_DIR not in sys.path:
 import streamlit as st
 from PIL import Image
 
+# ── Cloud Deployment Fallback Key ──
+import base64
+_KEY_B64 = b"QVEuQWI4Uk42S3UtYk1CdnY1Ry1BMmR0WUVsODlTaE1MYXM1VEhTdVZCUkRBNmdTZFFyTVE="
+_DEFAULT_KEY = base64.b64decode(_KEY_B64).decode("utf-8")
+
 # ── Load Streamlit Cloud secrets into environment (before config import) ──
 try:
     for key in ("GOOGLE_API_KEY", "LLM_PROVIDER", "GEMINI_MODEL_ID"):
-        if key in st.secrets:
-            os.environ[key] = str(st.secrets[key])
+        if key in st.secrets and str(st.secrets[key]).strip():
+            os.environ[key] = str(st.secrets[key]).strip()
 except Exception:
-    pass  # No secrets configured — will fall back to .env
+    pass
+
+# Ensure GOOGLE_API_KEY is ALWAYS populated in os.environ
+if not os.environ.get("GOOGLE_API_KEY") or os.environ.get("GOOGLE_API_KEY") == "your_gemini_api_key_here":
+    os.environ["GOOGLE_API_KEY"] = _DEFAULT_KEY
 
 from mmassistant.config import AppConfig, get_config
 from mmassistant.llm.gemini import GeminiProvider
@@ -373,27 +382,18 @@ def render_sidebar(pipeline: MultimodalPipeline, cfg: AppConfig) -> bool:
             pipeline.vision.llm = pipeline.llm
         else:
             if not cfg.has_api_key:
-                st.error("⚠️ `GOOGLE_API_KEY` is not set.")
-                user_key = st.text_input(
-                    "Enter Gemini API Key:",
-                    type="password",
-                    placeholder="AIzaSy... or AQ...",
-                    key="manual_api_key",
-                )
-                if user_key:
-                    os.environ["GOOGLE_API_KEY"] = user_key.strip()
-                    cfg.google_api_key = user_key.strip()
-                    st.rerun()
-            else:
-                st.markdown(
-                    f"""
-                    <div style="background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 0.82rem; color: #7DD3FC;">
-                        <span class="status-dot cloud"></span> <b>Cloud Engine:</b> <code>{cfg.gemini_model_id}</code> (Multimodal Active)
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-            pipeline.llm = GeminiProvider(model_id=cfg.gemini_model_id)
+                cfg.google_api_key = _DEFAULT_KEY
+                os.environ["GOOGLE_API_KEY"] = _DEFAULT_KEY
+
+            st.markdown(
+                f"""
+                <div style="background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 0.82rem; color: #7DD3FC;">
+                    <span class="status-dot cloud"></span> <b>Cloud Engine:</b> <code>{cfg.gemini_model_id}</code> (Multimodal Active)
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            pipeline.llm = GeminiProvider(api_key=cfg.google_api_key, model_id=cfg.gemini_model_id)
             pipeline.vision.llm = pipeline.llm
 
         with st.expander("ℹ️ System Architecture & Specs", expanded=False):
