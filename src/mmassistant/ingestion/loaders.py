@@ -125,6 +125,35 @@ def load_pdf(path: Path) -> Document:
                 except Exception as ocr_err:
                     logger.debug("OCR attempt skipped on page %d: %s", page_num, ocr_err)
 
+                # Secondary fallback: Gemini Multimodal Vision extraction for scanned/image pages
+                if len(page_text) < 40:
+                    try:
+                        from mmassistant.config import get_config
+                        cfg = get_config()
+                        if cfg.has_api_key:
+                            from mmassistant.llm.gemini import GeminiProvider
+                            pix = page.get_pixmap(dpi=150)
+                            img_bytes = pix.tobytes("png")
+                            gemini = GeminiProvider(api_key=cfg.google_api_key, model_id=cfg.gemini_model_id)
+                            res = gemini.generate_multimodal(
+                                prompt="Extract all readable text, specifications, tables, and product details from this document page verbatim. Output every line accurately.",
+                                image_bytes=img_bytes,
+                                mime_type="image/png",
+                            )
+                            transcription = (res.content or "").strip()
+                            if len(transcription) > len(page_text):
+                                logger.info(
+                                    "Page %d of '%s': Gemini Multimodal OCR recovered %d chars.",
+                                    page_num,
+                                    path.name,
+                                    len(transcription),
+                                )
+                                page_text = transcription
+                                ocr_applied = True
+                                ocr_conf = 0.95
+                    except Exception as gemini_err:
+                        logger.debug("Gemini multimodal OCR fallback skipped on page %d: %s", page_num, gemini_err)
+
             # Extract tables if available
             extracted_tables: list[str] = []
             try:

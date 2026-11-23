@@ -320,6 +320,10 @@ def initialize_session_state() -> None:
         ]
     if "selected_doc_ids" not in st.session_state:
         st.session_state.selected_doc_ids = set()
+    if "indexed_docs" not in st.session_state:
+        st.session_state.indexed_docs = []
+    if "ingest_alert" not in st.session_state:
+        st.session_state.ingest_alert = None
     if "attached_image_bytes" not in st.session_state:
         st.session_state.attached_image_bytes = None
     if "attached_image_name" not in st.session_state:
@@ -346,40 +350,75 @@ def render_sidebar(pipeline: MultimodalPipeline, cfg: AppConfig) -> bool:
 
         st.title("⚙️ System Control")
 
-        # 2. Inference Engine Card
+        # 2. Inference Engine Card — Always offers Cloud and Local LLM
         st.markdown('<div class="ui-card-title">🧠 Inference Engine</div>', unsafe_allow_html=True)
-        ollama_checker = OllamaProvider()
-        ollama_is_online = ollama_checker.is_available()
 
-        if ollama_is_online:
-            provider_options = [
-                "Google Gemini (Cloud API)",
-                "Local Ollama (Offline / Phi-3)",
-            ]
-            default_idx = 1 if cfg.llm_provider == "ollama" else 0
-            provider_choice = st.radio(
-                "Select Inference Model Provider:",
-                options=provider_options,
-                index=default_idx,
-                key="model_provider_selector",
-                label_visibility="collapsed",
-                help="Choose between Google Gemini Cloud API and offline local Phi-3 SLM.",
-            )
-            use_ollama = "Local Ollama" in provider_choice
-        else:
-            use_ollama = False
+        provider_options = [
+            "Google Gemini (Cloud API)",
+            "Local LLM (Ollama / SLM)",
+        ]
+        
+        # Check current choice from session state or config
+        current_choice = st.session_state.get("selected_provider_choice", "Google Gemini (Cloud API)")
+        provider_idx = 1 if "Local LLM" in current_choice else 0
 
-        if use_ollama and ollama_is_online:
-            st.markdown(
-                f"""
-                <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 0.82rem; color: #6EE7B7;">
-                    <span class="status-dot"></span> <b>Local Engine:</b> <code>{cfg.ollama_model_id}</code> (Unlimited & Private)
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            pipeline.llm = OllamaProvider(model_id=cfg.ollama_model_id)
-            pipeline.vision.llm = pipeline.llm
+        provider_choice = st.radio(
+            "Select Inference Model Provider:",
+            options=provider_options,
+            index=provider_idx,
+            key="model_provider_radio",
+            label_visibility="collapsed",
+            help="Choose between Google Gemini Cloud API and local/private Ollama SLM.",
+        )
+        st.session_state.selected_provider_choice = provider_choice
+        use_ollama = "Local LLM" in provider_choice
+
+        if use_ollama:
+            col_ep, col_m = st.columns([1.2, 1.0])
+            with col_ep:
+                ollama_url = st.text_input(
+                    "Ollama Endpoint URL:",
+                    value=st.session_state.get("ollama_url", cfg.ollama_base_url),
+                    key="ollama_url_input",
+                    help="Default: http://localhost:11434. For Streamlit Cloud, enter your Cloudflare/ngrok tunnel URL.",
+                ).strip().rstrip("/")
+            with col_m:
+                ollama_model = st.text_input(
+                    "Model ID:",
+                    value=st.session_state.get("ollama_model", cfg.ollama_model_id),
+                    key="ollama_model_input",
+                    help="Model tag, e.g. phi3:latest, tinyllama:latest",
+                ).strip()
+
+            st.session_state.ollama_url = ollama_url
+            st.session_state.ollama_model = ollama_model
+
+            ollama_provider = OllamaProvider(base_url=ollama_url, model_id=ollama_model)
+            ollama_online, status_msg = ollama_provider.test_connection()
+
+            if ollama_online:
+                st.markdown(
+                    f"""
+                    <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; font-size: 0.82rem; color: #6EE7B7;">
+                        <span class="status-dot"></span> <b>Local Engine Online:</b> <code>{ollama_model}</code> ({status_msg})
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                pipeline.llm = ollama_provider
+                pipeline.vision.llm = ollama_provider
+            else:
+                st.markdown(
+                    f"""
+                    <div style="background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; font-size: 0.82rem; color: #FCA5A5;">
+                        <b>🔴 Ollama Offline:</b> {status_msg}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                st.caption("💡 Run `ollama serve` locally, or enter a remote tunnel URL above. Rerouting queries to Gemini Cloud to prevent errors.")
+                pipeline.llm = GeminiProvider(api_key=cfg.google_api_key, model_id=cfg.gemini_model_id)
+                pipeline.vision.llm = pipeline.llm
         else:
             if not cfg.has_api_key:
                 cfg.google_api_key = _DEFAULT_KEY
@@ -387,7 +426,7 @@ def render_sidebar(pipeline: MultimodalPipeline, cfg: AppConfig) -> bool:
 
             st.markdown(
                 f"""
-                <div style="background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 0.82rem; color: #7DD3FC;">
+                <div style="background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; font-size: 0.82rem; color: #7DD3FC;">
                     <span class="status-dot cloud"></span> <b>Cloud Engine:</b> <code>{cfg.gemini_model_id}</code> (Multimodal Active)
                 </div>
                 """,
@@ -397,13 +436,27 @@ def render_sidebar(pipeline: MultimodalPipeline, cfg: AppConfig) -> bool:
             pipeline.vision.llm = pipeline.llm
 
         with st.expander("ℹ️ System Architecture & Specs", expanded=False):
-            st.caption(f"**Inference:** `{'ollama/' + cfg.ollama_model_id if use_ollama else cfg.gemini_model_id}`")
+            active_engine_name = f"ollama/{st.session_state.get('ollama_model', cfg.ollama_model_id)}" if use_ollama else cfg.gemini_model_id
+            st.caption(f"**Inference:** `{active_engine_name}`")
             st.caption(f"**Embeddings:** `{cfg.embedding_model_id}` (384-dim, Local BGE)")
             st.caption(f"**Vector Database:** ChromaDB (`storage/chroma`)")
             st.caption(f"**Retrieval Depth:** Top-{cfg.top_k_chunks} Chunks (Threshold: {cfg.similarity_threshold})")
-            st.caption(f"**OCR Subsystem:** RapidOCR ONNX (Deep Learning Offline)")
+            st.caption(f"**OCR Subsystem:** RapidOCR ONNX + Gemini Vision Multimodal Fallback")
 
         st.divider()
+
+        # Alert banner for indexing results across reruns
+        if st.session_state.get("ingest_alert"):
+            alert = st.session_state.ingest_alert
+            alert_type = alert.get("type", "info")
+            msg = alert.get("msg", "")
+            if alert_type == "success":
+                st.success(msg)
+            elif alert_type == "warning":
+                st.warning(msg)
+            elif alert_type == "error":
+                st.error(msg)
+            st.session_state.ingest_alert = None
 
         # 3. Document Ingestion Card (Broader Area)
         st.markdown('<div class="ui-card-title">📄 Document Ingestion</div>', unsafe_allow_html=True)
@@ -428,7 +481,10 @@ def render_sidebar(pipeline: MultimodalPipeline, cfg: AppConfig) -> bool:
             btn_clicked = st.button("⚡ Index Uploaded Documents", use_container_width=True, type="primary")
 
             if btn_clicked:
-                success_count = 0
+                indexed_count = 0
+                error_count = 0
+                messages: list[str] = []
+
                 for uploaded_file in uploaded_files:
                     save_path = cfg.upload_dir / uploaded_file.name
                     with open(save_path, "wb") as f:
@@ -442,16 +498,33 @@ def render_sidebar(pipeline: MultimodalPipeline, cfg: AppConfig) -> bool:
                                 extract_figures=extract_figures,
                             )
                             if res["status"] == "indexed":
-                                st.toast(f"Indexed {res['filename']} ({res['chunks']} chunks)", icon="✅")
-                                success_count += 1
+                                messages.append(f"✅ Indexed **{res['filename']}** ({res['chunks']} chunks, {res['total_pages']} pages)")
+                                indexed_count += 1
                             elif res["status"] == "skipped":
-                                st.toast(f"{res['filename']} is already indexed.", icon="ℹ️")
-                                success_count += 1
+                                messages.append(f"ℹ️ **{res['filename']}** is already indexed. (Check 'Force Re-index' to overwrite)")
+                                indexed_count += 1
+                            elif res["status"] == "empty":
+                                msg = f"⚠️ Document **{res['filename']}** contains no readable text."
+                                st.warning(msg)
+                                messages.append(msg)
                         except Exception as exc:
-                            st.error(f"Failed to index '{uploaded_file.name}': {exc}")
+                            import traceback
+                            tb_str = traceback.format_exc()
+                            print(f"[ERROR] Failed to index {uploaded_file.name}:\n{tb_str}")
                             logger.exception("Ingestion failed: %s", exc)
+                            st.error(f"❌ Failed to index '{uploaded_file.name}': {exc}")
+                            with st.expander(f"Traceback Details for {uploaded_file.name}", expanded=True):
+                                st.code(tb_str, language="python")
+                            error_count += 1
 
-                if success_count > 0:
+                # Update session state document list
+                st.session_state.indexed_docs = pipeline.list_documents()
+
+                if indexed_count > 0:
+                    st.session_state.ingest_alert = {
+                        "type": "success",
+                        "msg": " \n\n ".join(messages),
+                    }
                     st.rerun()
 
         st.divider()
@@ -459,6 +532,10 @@ def render_sidebar(pipeline: MultimodalPipeline, cfg: AppConfig) -> bool:
         # 4. Document Library & Active Filter Manager
         st.markdown('<div class="ui-card-title">📚 Document Library</div>', unsafe_allow_html=True)
         docs = pipeline.list_documents()
+        if not docs and st.session_state.get("indexed_docs"):
+            docs = st.session_state.indexed_docs
+        else:
+            st.session_state.indexed_docs = docs
 
         if not docs:
             st.caption("No documents in vector database yet. Upload a document above to get started.")
@@ -581,9 +658,10 @@ def main() -> None:
 
     # Executive Hero Banner
     active_docs = pipeline.list_documents()
-    total_chunks = sum(d["chunk_count"] for d in active_docs)
-    ollama_online = OllamaProvider().is_available()
-    active_model = f"ollama/{cfg.ollama_model_id}" if (cfg.llm_provider == "ollama" and ollama_online) else cfg.gemini_model_id
+    if not active_docs and st.session_state.get("indexed_docs"):
+        active_docs = st.session_state.indexed_docs
+    total_chunks = sum(d.get("chunk_count", 0) for d in active_docs)
+    active_model = getattr(pipeline.llm, "model_id", cfg.gemini_model_id)
 
     st.markdown(
         f"""
