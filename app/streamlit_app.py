@@ -373,12 +373,22 @@ def render_sidebar(pipeline: MultimodalPipeline, cfg: AppConfig) -> bool:
             pipeline.vision.llm = pipeline.llm
         else:
             if not cfg.has_api_key:
-                st.error("⚠️ `GOOGLE_API_KEY` is not set in `.env`.")
+                st.error("⚠️ `GOOGLE_API_KEY` is not set.")
+                user_key = st.text_input(
+                    "Enter Gemini API Key:",
+                    type="password",
+                    placeholder="AIzaSy... or AQ...",
+                    key="manual_api_key",
+                )
+                if user_key:
+                    os.environ["GOOGLE_API_KEY"] = user_key.strip()
+                    cfg.google_api_key = user_key.strip()
+                    st.rerun()
             else:
                 st.markdown(
                     f"""
                     <div style="background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 0.82rem; color: #7DD3FC;">
-                        <span class="status-dot cloud"></span> <b>Cloud Engine:</b> <code>{cfg.gemini_model_id}</code> (Multimodal)
+                        <span class="status-dot cloud"></span> <b>Cloud Engine:</b> <code>{cfg.gemini_model_id}</code> (Multimodal Active)
                     </div>
                     """,
                     unsafe_allow_html=True,
