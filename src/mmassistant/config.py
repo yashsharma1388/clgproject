@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 # Base project root (two levels up from this file)
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-# Load .env from project root if present
-load_dotenv(dotenv_path=BASE_DIR / ".env")
+# Load .env from project root if present (override=True ensures .env always wins)
+load_dotenv(dotenv_path=BASE_DIR / ".env", override=True)
 
 
 @dataclass

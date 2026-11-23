@@ -550,7 +550,7 @@ def render_chat_history() -> None:
 def main() -> None:
     """Main application loop."""
     inject_custom_styles()
-    cfg = get_config()
+    cfg = get_config(reload=True)
     pipeline = get_pipeline()
     initialize_session_state()
 
