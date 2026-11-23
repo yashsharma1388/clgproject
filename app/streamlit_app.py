@@ -357,32 +357,32 @@ def render_sidebar(pipeline: MultimodalPipeline, cfg: AppConfig) -> bool:
             "Google Gemini (Cloud API)",
             "Local LLM (Ollama / SLM)",
         ]
-        
-        # Check current choice from session state or config
-        current_choice = st.session_state.get("selected_provider_choice", "Google Gemini (Cloud API)")
-        provider_idx = 1 if "Local LLM" in current_choice else 0
+
+        # Always default to Google Gemini (Cloud API) unless local Ollama is verified online
+        ollama_checker = OllamaProvider()
+        ollama_is_locally_online = ollama_checker.is_available()
+
+        if "model_provider_radio" not in st.session_state or not ollama_is_locally_online:
+            st.session_state["model_provider_radio"] = "Google Gemini (Cloud API)"
 
         provider_choice = st.radio(
             "Select Inference Model Provider:",
             options=provider_options,
-            index=provider_idx,
+            index=0,
             key="model_provider_radio",
             label_visibility="collapsed",
             help="Choose between Google Gemini Cloud API and local/private Ollama SLM.",
         )
-        st.session_state.selected_provider_choice = provider_choice
         use_ollama = "Local LLM" in provider_choice
 
         if use_ollama:
-            col_ep, col_m = st.columns([1.2, 1.0])
-            with col_ep:
+            with st.expander("⚙️ Local Connection Settings", expanded=False):
                 ollama_url = st.text_input(
                     "Ollama Endpoint URL:",
                     value=st.session_state.get("ollama_url", cfg.ollama_base_url),
                     key="ollama_url_input",
-                    help="Default: http://localhost:11434. For Streamlit Cloud, enter your Cloudflare/ngrok tunnel URL.",
+                    help="Default: http://localhost:11434. For Streamlit Cloud, enter your public tunnel URL.",
                 ).strip().rstrip("/")
-            with col_m:
                 ollama_model = st.text_input(
                     "Model ID:",
                     value=st.session_state.get("ollama_model", cfg.ollama_model_id),
@@ -390,17 +390,17 @@ def render_sidebar(pipeline: MultimodalPipeline, cfg: AppConfig) -> bool:
                     help="Model tag, e.g. phi3:latest, tinyllama:latest",
                 ).strip()
 
-            st.session_state.ollama_url = ollama_url
-            st.session_state.ollama_model = ollama_model
+            st.session_state.ollama_url = ollama_url if 'ollama_url' in locals() else cfg.ollama_base_url
+            st.session_state.ollama_model = ollama_model if 'ollama_model' in locals() else cfg.ollama_model_id
 
-            ollama_provider = OllamaProvider(base_url=ollama_url, model_id=ollama_model)
+            ollama_provider = OllamaProvider(base_url=st.session_state.ollama_url, model_id=st.session_state.ollama_model)
             ollama_online, status_msg = ollama_provider.test_connection()
 
             if ollama_online:
                 st.markdown(
                     f"""
                     <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; font-size: 0.82rem; color: #6EE7B7;">
-                        <span class="status-dot"></span> <b>Local Engine Online:</b> <code>{ollama_model}</code> ({status_msg})
+                        <span class="status-dot"></span> <b>Local Engine:</b> <code>{st.session_state.ollama_model}</code> (Online)
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -409,14 +409,13 @@ def render_sidebar(pipeline: MultimodalPipeline, cfg: AppConfig) -> bool:
                 pipeline.vision.llm = ollama_provider
             else:
                 st.markdown(
-                    f"""
-                    <div style="background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; font-size: 0.82rem; color: #FCA5A5;">
-                        <b>🔴 Ollama Offline:</b> {status_msg}
+                    """
+                    <div style="background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; font-size: 0.82rem; color: #FCD34D;">
+                        <span>⚠️</span> <b>Local Ollama Offline:</b> Routing queries to Gemini Cloud.
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
-                st.caption("💡 Run `ollama serve` locally, or enter a remote tunnel URL above. Rerouting queries to Gemini Cloud to prevent errors.")
                 pipeline.llm = GeminiProvider(api_key=cfg.google_api_key, model_id=cfg.gemini_model_id)
                 pipeline.vision.llm = pipeline.llm
         else:
